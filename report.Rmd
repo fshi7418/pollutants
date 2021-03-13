@@ -1,0 +1,18 @@
+---
+title: "STAT331 Final Project"
+author: "Group 57"
+date: "12/03/2021"
+header-includes:
+  - \usepackage{enumerate}
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r directory, echo=FALSE}
+data_dir <-  r"(C:\Users\Frank Shi\Documents\FrankS\Waterloo\pollutants)"
+setwd(data_dir)
+pollutants <- read.csv(file='pollutants.csv')
+```
