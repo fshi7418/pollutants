@@ -35,5 +35,8 @@ vignettes/*.pdf
 *.utf8.md
 *.knit.md
 
+# David's test folder
+/test/
+
 # R Environment Variables
 .Renviron
