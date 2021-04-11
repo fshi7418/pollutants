@@ -1,3 +1,5 @@
+set.seed(123) ## for reproducibility
+library(glmnet)
 library(corrplot)
 data_dir <-  r"(C:\Users\Frank Shi\Documents\FrankS\Waterloo\pollutants)"
 setwd(data_dir)
@@ -49,4 +51,43 @@ pollutants[pollutants['ageyrs'] >= 51, 'agegroup'] = 3
 agegroup_list <- c('young', 'middleage', 'elder')
 agegroup <- agegroup_list[pollutants$agegroup]
 pollutants$agegroup <- factor(agegroup, levels=agegroup_list)
+
+# lastly, take out ageyrs because we already have agegroup
+pollutants <- pollutants[!colnames(pollutants) %in% c('ageyrs')]
+
+# the most basic steps of data manipulation complete
+
+# some ad-hoc covariates exclusions
+# adhoc_excl <- c('edu_cat', 'race_cat')
+# pollutants <- pollutants[!colnames(pollutants) %in% adhoc_excl]
+
+#===============================================
+# establishing benchmarks
+model_full <- lm(length ~ ., data=pollutants)
+model_0 <- lm(length ~ 1, data=pollutants)
+model_start <- lm(length ~ 1, data=pollutants)
+# aic stepwise
+system.time({
+  Mstep <- step(object = model_start,
+                scope = list(lower = model_0, upper = model_full),
+                direction = "both", 
+                trace = 1, 
+                k = 2)
+})
+
+# bic stepwise
+system.time({
+  Mstep <- step(object = model_start,
+                scope = list(lower = model_0, upper = model_full),
+                direction = "both", 
+                trace = 1, 
+                k = log(nrow(pollutants)))
+})
+
+#  lasso
+y <- pollutants[['length']]
+X <- model.matrix(model_full)
+model_lasso <- glmnet(x=X, y=y, alpha=1, nlambda=500)
+cv_fit_lasso <- cv.glmnet(x=X, y=y, alpha=1, nlambda=500)
+print(coef(cv_fit_lasso, s="lambda.min"))
 
