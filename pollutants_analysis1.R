@@ -65,10 +65,10 @@ pollutants <- pollutants[!colnames(pollutants) %in% c('ageyrs')]
 # establishing benchmarks
 model_full <- lm(length ~ ., data=pollutants)
 model_0 <- lm(length ~ 1, data=pollutants)
-model_start <- lm(length ~ 1, data=pollutants)
+model_start_aic <- lm(length ~ 1, data=pollutants)
 # aic stepwise
 system.time({
-  Mstep <- step(object = model_start,
+  Mstep <- step(object = model_start_aic,
                 scope = list(lower = model_0, upper = model_full),
                 direction = "both", 
                 trace = 1, 
@@ -76,8 +76,9 @@ system.time({
 })
 
 # bic stepwise
+model_start_bic <- lm(length ~ 1, data=pollutants)
 system.time({
-  Mstep <- step(object = model_start,
+  Mstep <- step(object = model_start_bic,
                 scope = list(lower = model_0, upper = model_full),
                 direction = "both", 
                 trace = 1, 
@@ -89,5 +90,19 @@ y <- pollutants[['length']]
 X <- model.matrix(model_full)
 model_lasso <- glmnet(x=X, y=y, alpha=1, nlambda=500)
 cv_fit_lasso <- cv.glmnet(x=X, y=y, alpha=1, nlambda=500)
+print(coef(model_lasso, s="lambda.min"))
 print(coef(cv_fit_lasso, s="lambda.min"))
 
+# build the models with the covariates chosen by these model selection algorithms
+stepwise_covariates <- c('agegroup', 'male', 'ln_lbxcot', 'yrssmoke')
+stepwise_dataset <- pollutants[colnames(pollutants) %in% c('length', stepwise_covariates)]
+model_step <- lm(length ~ ., data=stepwise_dataset)
+lasso_covariates <- c('POP_PCB8', 'POP_dioxin2', 'POP_dioxin3', 'POP_furan3', 'monocyte_pct', 
+                      'BMI', 'edu_cat', 'race_cat', 'male', 'yrssmoke', 'ln_lbxcot', 'agegroup')
+lasso_dataset <- pollutants[colnames(pollutants) %in% c('length', lasso_covariates)]
+model_lasso <- lm(length ~ ., data=lasso_dataset)
+
+#===============================================
+# trying interaction terms
+# on stepwise covariates
+stepwise_age_interact <- lm(length ~ . + agegroup * ln_lbxcot + agegroup * yrssmoke, data=stepwise_dataset)
