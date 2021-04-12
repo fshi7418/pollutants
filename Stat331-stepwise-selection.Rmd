@@ -10,7 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 Setup
 
 ```{r}
-pollutants <- read.csv("C:\\Users\\ryanw\\Downloads\\pollutants.csv", header = TRUE)
+setwd(r"(C:\Users\Frank Shi\Documents\FrankS\Waterloo\pollutants)")
+pollutants <- read.csv("pollutants.csv", header = TRUE)
 pollutants <- pollutants[-1]
 pollutants
 ```
@@ -86,7 +87,7 @@ summary(MfwdBIC)
 MfwdBIC.res <- pollutants$length[-sampleTrain] - predict(MfwdBIC, newdata = dataTest)
 mspeMfwdBIC <- mean(MfwdBIC.res^2)
 
-print(paste("MSPE of foward selection model based on AIC:",mspeMfwdBIC))
+print(paste("MSPE of foward selection model based on BIC:",mspeMfwdBIC))
 ```
 
 ```{r}
@@ -99,7 +100,7 @@ summary(MbckAIC)
 MbckAIC.res <- pollutants$length[-sampleTrain] - predict(MbckAIC, newdata = dataTest)
 mspeMbckAIC <- mean(MbckAIC.res^2)
 
-print(paste("MSPE of foward selection model based on AIC:",mspeMbckAIC))
+print(paste("MSPE of backward selection model based on AIC:",mspeMbckAIC))
 ```
 
 ```{r}
@@ -112,7 +113,47 @@ summary(MbckBIC)
 MbckBIC.res <- pollutants$length[-sampleTrain] - predict(MbckBIC, newdata = dataTest)
 mspeMbckBIC <- mean(MbckBIC.res^2)
 
-print(paste("MSPE of foward selection model based on AIC:",mspeMbckBIC))
+print(paste("MSPE of backward selection model based on BIC:",mspeMbckBIC))
+```
+
+```{r}
+## Stepwise selection using AIC
+M0start <- M0
+# aic stepwise
+system.time({
+  MstepwiseAIC <- step(object = M0start,
+                scope = list(lower = M0, upper = Mfull),
+                direction = "both",
+                trace = 0,
+                k = 2)
+})
+summary(MstepwiseAIC)
+
+## Prediction accuracy
+MstepwiseAIC.res <- pollutants$length[-sampleTrain] - predict(MstepwiseAIC, newdata = dataTest)
+mspeMstepwiseAIC <- mean(MstepwiseAIC.res^2)
+
+print(paste("MSPE of stepwise selection model based on AIC:",mspeMstepwiseAIC))
+```
+
+```{r}
+## Stepwise selection using BIC
+M0start <- M0
+# bic stepwise
+system.time({
+  MstepwiseBIC <- step(object = M0start,
+                scope = list(lower = M0, upper = Mfull),
+                direction = "both",
+                trace = 0,
+                k = log(nrow(dataTrain)))
+})
+summary(MstepwiseBIC)
+
+## Prediction accuracy
+MstepwiseBIC.res <- pollutants$length[-sampleTrain] - predict(MstepwiseBIC, newdata = dataTest)
+mspeMstepwiseBIC <- mean(MstepwiseBIC.res^2)
+
+print(paste("MSPE of stepwise selection model based on BIC:",mspeMstepwiseBIC))
 ```
 
 Correlation testing for PCB 1,2,4,5
@@ -147,8 +188,10 @@ Mfull_corRemoved <- lm(length ~ ., data = dataTrain2)
 
 ```{r}
 ## Forward selection using AIC
-MfwdAIC_corRemoved <- step(object = M0_corRemoved, scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved), 
-             trace = FALSE, direction = "forward", k = 2)
+MfwdAIC_corRemoved <- step(object = M0_corRemoved, 
+                           scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved), 
+                           trace = FALSE, 
+                           direction = "forward", k = 2)
 summary(MfwdAIC_corRemoved)
 
 ## Prediction accuracy
@@ -168,7 +211,7 @@ summary(MfwdBIC_corRemoved)
 MfwdBIC_corRemoved.res <- pollutants$length[-sampleTrain2] - predict(MfwdBIC_corRemoved, newdata = dataTest2)
 mspeMfwdBIC_corRemoved <- mean(MfwdBIC_corRemoved.res^2)
 
-print(paste("MSPE of foward selection model based on AIC:",mspeMfwdBIC_corRemoved))
+print(paste("MSPE of foward selection model based on BIC:",mspeMfwdBIC_corRemoved))
 ```
 
 ```{r}
@@ -197,9 +240,69 @@ mspeMbckBIC_corRemoved <- mean(MbckBIC_corRemoved.res^2)
 print(paste("MSPE of foward selection model based on AIC:",mspeMbckBIC_corRemoved))
 ```
 
+```{r}
+## Stepwise selection using AIC but with reduced set of covariates
+M0start_corRemoved <- M0_corRemoved
+# aic stepwise
+system.time({
+  MstepwiseAIC_corRemoved <- step(object = M0start_corRemoved,
+                scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved),
+                direction = "both",
+                trace = 0,
+                k = 2)
+})
+summary(MstepwiseAIC_corRemoved)
 
+## Prediction accuracy
+MstepwiseAIC_corRemoved.res <- pollutants$length[-sampleTrain] - predict(MstepwiseAIC_corRemoved, 
+                                                                         newdata = dataTest2)
+mspeMstepwiseAIC_corRemoved <- mean(MstepwiseAIC_corRemoved.res^2)
 
+print(paste("MSPE of stepwise selection model based on AIC (uncorrelated):",mspeMstepwiseAIC_corRemoved))
+```
 
+```{r}
+## Stepwise selection using AIC but with reduced set of covariates
+M0start_corRemoved <- M0_corRemoved
+# aic stepwise
+system.time({
+  MstepwiseBIC_corRemoved <- step(object = M0start_corRemoved,
+                scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved),
+                direction = "both",
+                trace = 0,
+                k = log(nrow(dataTrain2)))
+})
+summary(MstepwiseBIC_corRemoved)
+
+## Prediction accuracy
+MstepwiseBIC_corRemoved.res <- pollutants$length[-sampleTrain] - predict(MstepwiseBIC_corRemoved, 
+                                                                         newdata = dataTest2)
+mspeMstepwiseBIC_corRemoved <- mean(MstepwiseBIC_corRemoved.res^2)
+
+print(paste("MSPE of stepwise selection model based on AIC (uncorrelated):",mspeMstepwiseBIC_corRemoved))
+```
+
+```{r}
+print(paste("MSPE of foward selection model based on AIC:",mspeMfwdAIC))
+print(paste("MSPE of foward selection model based on BIC:",mspeMfwdBIC))
+print(paste("MSPE of backward selection model based on AIC:",mspeMbckAIC))
+print(paste("MSPE of backward selection model based on BIC:",mspeMbckBIC))
+print(paste("MSPE of stepwise selection model based on AIC:",mspeMstepwiseAIC))
+print(paste("MSPE of stepwise selection model based on BIC:",mspeMstepwiseBIC))
+
+print(paste("MSPE of foward selection model based on AIC (no corr):",mspeMfwdAIC_corRemoved))
+print(paste("MSPE of foward selection model based on BIC (no corr):",mspeMfwdBIC_corRemoved))
+print(paste("MSPE of backward selection model based on AIC (no corr):",mspeMbckAIC_corRemoved))
+print(paste("MSPE of backward selection model based on BIC (no corr):",mspeMbckBIC_corRemoved))
+print(paste("MSPE of stepwise selection model based on AIC (no corr):",mspeMstepwiseAIC_corRemoved))
+print(paste("MSPE of stepwise selection model based on BIC (no corr):",mspeMstepwiseBIC_corRemoved))
+```
+Remarks
+1. Removing the correlated covariates does not change the MSPE for any model selection algorithm except
+for a very small change in the MSPE for forward selection based on AIC.
+2. Forward, backwards, and stepwise selection based on BIC all give the same model: furan3 + ageyrs
+3. Forward and backwards selection based on AIC give different models.
+4. Stepwise based on AIC gives the same model as forward selection based on AIC.
 
 
 
