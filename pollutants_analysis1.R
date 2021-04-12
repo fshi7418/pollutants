@@ -1,7 +1,7 @@
 set.seed(123) ## for reproducibility
 library(glmnet)
 library(corrplot)
-data_dir <-  r"(C:\Users\Frank Shi\Documents\FrankS\Waterloo\pollutants)"
+data_dir <-  "/home/logan/Desktop/STAT 331/Final/pollutants"
 setwd(data_dir)
 pollutants_original <- read.csv(file='pollutants.csv')
 
@@ -68,7 +68,7 @@ model_0 <- lm(length ~ 1, data=pollutants)
 model_start_aic <- lm(length ~ 1, data=pollutants)
 # aic stepwise
 system.time({
-  Mstep <- step(object = model_start_aic,
+  Mstep_aic <- step(object = model_start_aic,
                 scope = list(lower = model_0, upper = model_full),
                 direction = "both", 
                 trace = 1, 
@@ -78,7 +78,7 @@ system.time({
 # bic stepwise
 model_start_bic <- lm(length ~ 1, data=pollutants)
 system.time({
-  Mstep <- step(object = model_start_bic,
+  Mstep_bic <- step(object = model_start_bic,
                 scope = list(lower = model_0, upper = model_full),
                 direction = "both", 
                 trace = 1, 
