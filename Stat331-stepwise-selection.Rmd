@@ -1,0 +1,260 @@
+---
+title: "Stat331 final project"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Setup
+
+```{r}
+library(glmnet)
+library(corrplot)
+pollutants_original <- read.csv("pollutants.csv", header = TRUE)
+pollutants <- pollutants_original[-1]
+```
+
+```{r}
+gender_list <- c('female', 'male')
+edu_list <- c('before_high_school', 'high_school', 'college', 'college_grad')
+eth_list <- c('other', 'mexi_us', 'nonhisp_black', 'nonhisp_white')
+smoke_list <- c('no', 'yes')
+
+gender <- gender_list[pollutants$male + 1]
+education <- edu_list[pollutants$edu_cat]
+race <- eth_list[pollutants$race_cat]
+smoke_now <- smoke_list[pollutants$smokenow + 1]
+```
+
+```{r}
+pollutants$male <- factor(gender)
+pollutants$edu_cat <- factor(education)
+pollutants$race_cat <- factor(race)
+pollutants$smokenow <- factor(smoke_now)
+
+pollutants$male <- factor(gender, levels=gender_list)
+pollutants$edu_cat <- factor(education, levels=edu_list)
+pollutants$race_cat <- factor(race, levels=eth_list)
+pollutants$smokenow <- factor(smoke_now, levels=smoke_list)
+```
+
+```{r}
+## Factors removed 
+pollutants_factorsRemoved <- pollutants[-c(27,28,29,32)]
+
+pollutants_factorsRemovedCor <- cor(pollutants_factorsRemoved)
+```
+
+Train and test data
+
+```{r}
+set.seed(57)
+
+N <- nrow(pollutants)
+sampleTrain <- sample(1:N, round(N*0.8,0), replace = FALSE)
+
+dataTrain <- pollutants[sampleTrain,]
+dataTest <- pollutants[-sampleTrain,]
+```
+
+Bounds for model selection
+
+```{r}
+M0 <- lm(length ~ 1, data = dataTrain)
+Mfull <- lm(length ~ ., data = dataTrain)
+```
+
+```{r}
+## Forward selection using AIC
+MfwdAIC <- step(object = M0, scope = list(lower = M0, upper = Mfull), 
+             trace = FALSE, direction = "forward", k = 2)
+summary(MfwdAIC)
+
+## Prediction accuracy
+MfwdAIC.res <- pollutants$length[-sampleTrain] - predict(MfwdAIC, newdata = dataTest)
+mspeMfwdAIC <- mean(MfwdAIC.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMfwdAIC))
+```
+
+```{r}
+## Forward selection using BIC
+MfwdBIC <- step(object = M0, scope = list(lower = M0, upper = Mfull), 
+             trace = FALSE, direction = "forward", k = log(nrow(dataTrain)))
+summary(MfwdBIC)
+
+## Prediction accuracy
+MfwdBIC.res <- pollutants$length[-sampleTrain] - predict(MfwdBIC, newdata = dataTest)
+mspeMfwdBIC <- mean(MfwdBIC.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMfwdBIC))
+```
+
+```{r}
+## Backward selection using AIC
+MbckAIC <- step(object = Mfull, scope = list(lower = M0, upper = Mfull),
+                trace = FALSE, direction = "backward", k = 2)
+summary(MbckAIC)
+
+## Prediction accuracy
+MbckAIC.res <- pollutants$length[-sampleTrain] - predict(MbckAIC, newdata = dataTest)
+mspeMbckAIC <- mean(MbckAIC.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMbckAIC))
+```
+
+```{r}
+## Backward selection using BIC 
+MbckBIC <- step(object = Mfull, scope = list(lower = M0, upper = Mfull),
+                trace = FALSE, direction = "backward", k = log(nrow(dataTrain)))
+summary(MbckBIC)
+
+## Prediction accuracy
+MbckBIC.res <- pollutants$length[-sampleTrain] - predict(MbckBIC, newdata = dataTest)
+mspeMbckBIC <- mean(MbckBIC.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMbckBIC))
+```
+
+Correlation testing for PCB 1,2,4,5
+
+```{r}
+pollutants_pcbs <- dataTrain[,-c(2,3,5,6)]
+cor(pollutants_pcbs[,2:8])
+```
+
+Manual analysis of variate correlation. This is done solely against the training set to avoid leakage of information from the holdout set, which would negatively impact the accuracy of model performance evaluation.
+```{r, fig.align="center", fig.width=8, fig.height=9}
+# Correlation matrix
+dataTrain_num <- pollutants_original[row.names(dataTrain),]
+dataTrain_cor <- cor(dataTrain_num[!colnames(dataTrain_num) %in% c('length')])
+
+# Correlation plot
+corrplot(dataTrain_cor, method="color", type="full", order="hclust",  tl.col = "black")
+```
+
+Based on the correlation plot, the following variates are correlated with other variates:PCB 1,3,4,5,8,9,10, furan 1, dioxin 1,2, Lymphocyte_pct. We remove them from the dataset and analyze the resulting correlation plot.
+```{r, fig.align="center", fig.width=6, fig.height=6}
+# New datasets
+cols_to_exclude <- c('POP_PCB1','POP_PCB3','POP_PCB4','POP_PCB5','POP_PCB8',
+                     'POP_PCB9','POP_PCB10','POP_furan1','POP_dioxin1',
+                     'POP_dioxin2','lymphocyte_pct')
+pollutants_corRemoved <- pollutants[!colnames(pollutants) %in% cols_to_exclude]
+dataTrain_corRemoved <- dataTrain[!colnames(dataTrain) %in% cols_to_exclude]
+
+# Correlation matrix
+dataTrain_corRemoved_num <- pollutants_original[
+  sampleTrain,
+  !colnames(pollutants_original) %in% cols_to_exclude]
+
+dataTrain_corRemoved_cor <- cor(
+  dataTrain_corRemoved_num[
+    !colnames(dataTrain_corRemoved_num) %in% c('length')])
+
+# Correlation plot
+corrplot(dataTrain_corRemoved_cor, method="color", type="full", order="hclust",
+         tl.col = "black")
+```
+
+Stepwise model selection with PCB, Furan, Dioxin, and other correlated features removed
+
+```{r}
+# From Discord:
+# Doing this [setting dataTrain2<-dataTrain, etc.] because we just did the manual variable selection based on the first training set
+# For now, will just set dataTrain2 <- dataTrain and dataTest2 <- dataTest
+# Later we can go through and remove all the 2's. I just don't want any conflicts rn in case anyone was modifying the second half of the analysis.
+
+# Originally, this section defined a second training/test set. Changed this
+set.seed(57)
+
+N2 <- N
+sampleTrain2 <- sampleTrain
+
+dataTrain2 <- dataTrain
+dataTest2 <- dataTest
+```
+
+Bounds for model selection
+
+```{r}
+M0_corRemoved <- lm(length ~ 1, data = dataTrain2)
+Mfull_corRemoved <- lm(length ~ ., data = dataTrain2)
+```
+
+```{r}
+## Forward selection using AIC
+MfwdAIC_corRemoved <- step(object = M0_corRemoved, scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved), 
+             trace = FALSE, direction = "forward", k = 2)
+summary(MfwdAIC_corRemoved)
+
+## Prediction accuracy
+MfwdAIC_corRemoved.res <- pollutants$length[-sampleTrain2] - predict(MfwdAIC_corRemoved, newdata = dataTest2)
+mspeMfwdAIC_corRemoved <- mean(MfwdAIC_corRemoved.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMfwdAIC_corRemoved))
+```
+
+```{r}
+## Forward selection using BIC
+MfwdBIC_corRemoved <- step(object = M0_corRemoved, scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved), 
+             trace = FALSE, direction = "forward", k = log(nrow(dataTrain2)))
+summary(MfwdBIC_corRemoved)
+
+## Prediction accuracy
+MfwdBIC_corRemoved.res <- pollutants$length[-sampleTrain2] - predict(MfwdBIC_corRemoved, newdata = dataTest2)
+mspeMfwdBIC_corRemoved <- mean(MfwdBIC_corRemoved.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMfwdBIC_corRemoved))
+```
+
+```{r}
+## Backward selection using AIC 
+MbckAIC_corRemoved <- step(object = Mfull_corRemoved, scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved),
+                trace = FALSE, direction = "backward", k = 2)
+summary(MbckAIC_corRemoved)
+
+## Prediction accuracy
+MbckAIC_corRemoved.res <- pollutants$length[-sampleTrain2] - predict(MbckAIC_corRemoved, newdata = dataTest2)
+mspeMbckAIC_corRemoved <- mean(MbckAIC_corRemoved.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMbckAIC_corRemoved))
+```
+
+```{r}
+## Backward selection using BIC 
+MbckBIC_corRemoved <- step(object = Mfull_corRemoved, scope = list(lower = M0_corRemoved, upper = Mfull_corRemoved),
+                trace = FALSE, direction = "backward", k = log(nrow(dataTrain2)))
+summary(MbckBIC_corRemoved)
+
+## Prediction accuracy
+MbckBIC_corRemoved.res <- pollutants$length[-sampleTrain2] - predict(MbckBIC_corRemoved, newdata = dataTest2)
+mspeMbckBIC_corRemoved <- mean(MbckBIC_corRemoved.res^2)
+
+print(paste("MSPE of foward selection model based on AIC:",mspeMbckBIC_corRemoved))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
