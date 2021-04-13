@@ -246,13 +246,44 @@ for (i in 1:length(covariate_set11)) {
 
 
 # take out education and race because of their high correlation with ageyrs
-covariate_set2 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'monocyte_pct', 'BMI', 'neutrophils_pct')
+# covariate_set2 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'monocyte_pct', 'BMI', 'neutrophils_pct')
+covariate_set2 <- c('ageyrs', 'POP_furan3', 'male')
 covariate_set2 <- c('length', covariate_set2)
 pollutants_set2 <- pollutants[colnames(pollutants) %in% covariate_set2]
 # log transforming the response variable
-pollutants_set2$length <- log(pollutants_set2$length)
+# pollutants_set2$length <- log(pollutants_set2$length)
+model2 <- lm(length ~ ., data=pollutants_set2)
 model2 <- lm(length ~ ., data=pollutants_set2)
 summary(model2)
+
+# cross validate model2 and the bare minimum model with ageyrs + furan3
+model_min <- lm(length ~ ageyrs + POP_furan3, data=pollutants_set2)
+kfold <- 12
+model2_mpse <- rep(NA, kfold)
+model_min_mpse <- rep(NA, kfold)
+pollutants_set21 <- pollutants_set2
+pollutants_set21$index <- rep(1:kfold, each=nrow(pollutants_set2)/kfold)
+for (i in 1:kfold) {
+  print(paste0("i = ", i))
+  train.ind <- which(pollutants_set21$index != i)
+  
+  i_newdata <- pollutants[-train.ind, ]
+  i_y <- pollutants$length[-train.ind]
+  
+  i_model_min <- update(model_min, subset=train.ind)
+  i_model2 <- update(model2, subset=train.ind)
+  
+  model_min.res <- pollutants_set2$length[-train.ind] - 
+    predict(i_model_min, newdata = pollutants_set2[-train.ind, ])
+  model2.res <- pollutants_set2$length[-train.ind] - 
+    predict(i_model2, newdata = pollutants_set2[-train.ind, ])
+ 
+  model_min_mpse[i] <- mean(model_min.res^2)
+  model2_mpse[i] <- mean(model2.res^2) 
+}
+print(paste0("minimum model with only age and furan3 avg. MPSE:", mean(model_min_mpse)))
+print(paste0("model2 avg. MPSE:", mean(model2_mpse)))
+
 
 # residual analysis of model2
 reslin <- resid(model2) # raw residuals
@@ -263,8 +294,19 @@ qqnorm(studlin)
 abline(0, 1)
 # before log transform of response, the qqplot looked like a gamma distribution
 
-# plot of residuals vs BMI
-plotted_col <- "ln_lbxcot"
+
+# plot of residuals vs covariates
+plotted_col <- "ageyrs"
+plot(reslin~pollutants_set2[[plotted_col]],
+     xlab=plotted_col,
+     ylab="Residuals",
+     main=paste0("Residuals vs ", plotted_col))
+plotted_col <- "male"
+plot(reslin~pollutants_set2[[plotted_col]],
+     xlab=plotted_col,
+     ylab="Residuals",
+     main=paste0("Residuals vs ", plotted_col))
+plotted_col <- "POP_furan3"
 plot(reslin~pollutants_set2[[plotted_col]],
      xlab=plotted_col,
      ylab="Residuals",
@@ -277,11 +319,67 @@ plot(studlin~fitted(model2),
      main="Residuals vs Fitted Values")
 
 
+# outliers analysis
+# number of covariates
+p <- length(model2$coefficients) - 1
+pred <- predict(model2, newdata=pollutants_set2)
+
+# check leverage
+h <- hatvalues(model2)
+which(h > 2* (p + 1) / N)
+
+# DFFITS
+dffits_model2 <- dffits(model2) 
+## plot DFFITS
+plot(dffits_model2,ylab="DFFITS") 
+abline(h=2 * sqrt((p + 1) / N), lty=2)  ## add thresholds
+abline(h=-2 * sqrt((p + 1) / N),lty=2)
+## highlight influential points
+dff_ind <- which(abs(dffits_model2) > 2 * sqrt((p + 1) / N))
+points(dffits_model2[dff_ind]~dff_ind, col="red", pch=19) ## add red points
+# we exclude text because it makes the chart too cluttered
+# text(y=dffits_model2[dff_ind], x=dff_ind, labels=dff_ind, pos=2) ## label high influence points
 
 
+# Cook's Distance
+
+D <- cooks.distance(model2) # Cook's distance
+## influential points
+inf_ind <- which(pf(D, p + 1, N - p - 1, lower.tail=TRUE) > 0.5)
+## plot cook's Distance
+plot(D,ylab="Cook's Distance")
+points(D[inf_ind]~inf_ind, col="red", pch=19) ## add red points
+text(y=D[inf_ind], x=inf_ind, labels=inf_ind, pos=4) ## label high influence points
 
 
+# DFBETAS
+DFBETAS <- dfbetas(model2) 
+dim(DFBETAS)
+## beta1 (furan3)
+plot(DFBETAS[, 2], type="h", xlab="Obs. Number", ylab=expression(paste("DFBETAS: ",beta[1])))
+num_outliers <- length(which(abs(DFBETAS[, 2]) > 2 / sqrt(N)))
+show_points <- order(-abs(DFBETAS[, 2]))[1:num_outliers] 
+points(x=show_points,y=DFBETAS[show_points,2], pch=19, col="red")
+text(x=show_points, y=DFBETAS[show_points,2], labels=show_points,pos=2)
 
+## beta2 (gender)
+plot(DFBETAS[,3], type="h",xlab="Obs. Number", ylab=expression(paste("DFBETAS: ",beta[2])))
+num_outliers <- length(which(abs(DFBETAS[, 3]) > 2 / sqrt(N)))
+show_points <- order(-abs(DFBETAS[, 3]))[1:num_outliers] 
+points(x=show_points,y=DFBETAS[show_points,3], pch=19, col="red")
+text(x=show_points, y=DFBETAS[show_points, 3], labels=show_points, pos=4)
+
+## beta3 (age)
+plot(DFBETAS[, 4], type="h",xlab="Obs. Number", ylab=expression(paste("DFBETAS: ", beta[3])))
+num_outliers <- length(which(abs(DFBETAS[, 4]) > 2 / sqrt(N)))
+show_points <- order(-abs(DFBETAS[, 4]))[1:num_outliers] 
+points(x=show_points,y=DFBETAS[show_points, 4], pch=19, col="red")
+text(x=show_points, y=DFBETAS[show_points, 4], labels=show_points, pos=4)
+
+## rule of thumb
+which(abs(DFBETAS[, 2]) > 2 / sqrt(N))  # furan3
+which(abs(DFBETAS[, 3]) > 2 / sqrt(N))  # gender
+which(abs(DFBETAS[, 4]) > 2 / sqrt(N))  # ageyrs
 
 
 
@@ -307,3 +405,43 @@ print(1 / (1 - summary(model_ageyrs_v_everything)$r.squared))
 vif(model_ageyrs_v_everything)
 
 summary(lm(edu_cat ~ ageyrs + race_cat + male, data=pollutants_original))
+
+
+# one last attempt to make sense of the effect of cotinine
+covariate_set3 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'yrssmoke')
+covariate_set3 <- c('length', covariate_set3)
+pollutants_set3 <- pollutants
+pollutants_set3$yrssmoke <- as.integer(pollutants_set3$yrssmoke > 0)
+
+smoke_list <- c('never_smoked', 'smoked')
+smoke_now <- smoke_list[pollutants_set3$yrssmoke + 1]
+pollutants_set3$yrssmoke <- factor(smoke_now, levels=smoke_list)
+print(dim(pollutants_set3))
+###
+pollutants_set3 <- pollutants_set3[colnames(pollutants_set3) %in% covariate_set3]
+
+# log transforming the response variable
+pollutants_set3$length <- log(pollutants_set3$length)
+model3 <- lm(length ~ ageyrs + POP_furan3 + male + ln_lbxcot + yrssmoke + yrssmoke * ln_lbxcot, data=pollutants_set3)
+summary(model3)
+
+# cv model3 v model2
+kfold <- 12
+model3_mpse <- rep(NA, kfold)
+pollutants_set31 <- pollutants_set3
+pollutants_set31$index <- rep(1:kfold, each=nrow(pollutants_set3)/kfold)
+for (i in 1:kfold) {
+  print(paste0("i = ", i))
+  train.ind <- which(pollutants_set31$index != i)
+  
+  i_newdata <- pollutants[-train.ind, ]
+  i_y <- pollutants$length[-train.ind]
+  
+  i_model3 <- update(model3, subset=train.ind)
+  
+  model3.res <- pollutants_set3$length[-train.ind] - 
+    predict(i_model3, newdata = pollutants_set3[-train.ind, ])
+
+  model3_mpse[i] <- mean(model3.res^2) 
+}
+print(paste0("model3 avg. MPSE:", mean(model3_mpse)))
