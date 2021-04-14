@@ -47,6 +47,8 @@ pollutants$edu_cat <- factor(education, levels=edu_list)
 pollutants$race_cat <- factor(race, levels=eth_list)
 pollutants$smokenow <- factor(smoke_now, levels=smoke_list)
 
+pollutants$length <- log(pollutants$length)
+
 # basic data manipulation complete
 
 
@@ -72,6 +74,8 @@ mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege",
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
+
+mspe_fAIC <- rep(NA, kfold)
 for (i in 1:kfold) {
   print(paste0("i = ", i))
   train.ind <- which(dataTrain_original$index != i)
@@ -89,7 +93,11 @@ for (i in 1:kfold) {
   print(row.names(summary(i_MfwdAIC)$coefficients))
   i_newdata <- dataTrain[-train.ind, ]
   i_y <- dataTrain$length[-train.ind]
+  
+  i_res <- i_y - predict(i_MfwdAIC, newdata=i_newdata)
+  mspe_fAIC[i] <- mean(i_res^2)
 }
+avgMSPE_fAIC <- mean(mspe_fAIC)
 write.csv(data.frame(pval_mat), "fwdAIC_pval.csv")
 write.csv(data.frame(selection_mat), "fwdAIC_indicator.csv")
 
@@ -101,6 +109,8 @@ mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege",
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
+
+mspe_bAIC <- rep(NA, kfold)
 for (i in 1:kfold) {
   print(paste0("i = ", i))
   train.ind <- which(dataTrain_original$index != i)
@@ -118,6 +128,9 @@ for (i in 1:kfold) {
   print(row.names(summary(i_MbckAIC)$coefficients))
   i_newdata <- dataTrain[-train.ind, ]
   i_y <- dataTrain$length[-train.ind]
+  
+  i_res <- i_y - predict(i_MbckAIC, newdata=i_newdata)
+  mspe_bAIC[i] <- mean(i_res^2)
 }
 write.csv(data.frame(pval_mat), "bckAIC_pval.csv")
 write.csv(data.frame(selection_mat), "bckAIC_indicator.csv")
@@ -130,6 +143,8 @@ mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege",
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
+
+mspe_sAIC <- rep(NA, kfold)
 for (i in 1:kfold) {
   print(paste0("i = ", i))
   train.ind <- which(dataTrain_original$index != i)
@@ -147,6 +162,9 @@ for (i in 1:kfold) {
   print(row.names(summary(i_MstepAIC)$coefficients))
   i_newdata <- dataTrain[-train.ind, ]
   i_y <- dataTrain$length[-train.ind]
+  
+  i_res <- i_y - predict(i_MstepAIC, newdata=i_newdata)
+  mspe_sAIC[i] <- mean(i_res^2)
 }
 write.csv(data.frame(pval_mat), "stepAIC_pval.csv")
 write.csv(data.frame(selection_mat), "stepAIC_indicator.csv")
@@ -159,6 +177,8 @@ mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege",
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
+
+mspe_sBIC <- rep(NA, kfold)
 for (i in 1:kfold) {
   print(paste0("i = ", i))
   train.ind <- which(dataTrain_original$index != i)
@@ -176,18 +196,23 @@ for (i in 1:kfold) {
   print(row.names(summary(i_MstepBIC)$coefficients))
   i_newdata <- dataTrain[-train.ind, ]
   i_y <- dataTrain$length[-train.ind]
+  
+  i_res <- i_y - predict(i_MstepBIC, newdata=i_newdata)
+  mspe_sBIC[i] <- mean(i_res^2)
 }
 write.csv(data.frame(pval_mat), "stepBIC_pval.csv")
 write.csv(data.frame(selection_mat), "stepBIC_indicator.csv")
 
 
-# stepwise selection using BIC and store them in a matrix
+# backward elimination using BIC and store them in a matrix
 selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
 pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
 mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
+
+mspe_bBIC <- rep(NA, kfold)
 for (i in 1:kfold) {
   print(paste0("i = ", i))
   train.ind <- which(dataTrain_original$index != i)
@@ -205,18 +230,23 @@ for (i in 1:kfold) {
   print(row.names(summary(i_MbckBIC)$coefficients))
   i_newdata <- dataTrain[-train.ind, ]
   i_y <- dataTrain$length[-train.ind]
+  
+  i_res <- i_y - predict(i_MbckBIC, newdata=i_newdata)
+  mspe_bBIC[i] <- mean(i_res^2)
 }
 write.csv(data.frame(pval_mat), "bckBIC_pval.csv")
 write.csv(data.frame(selection_mat), "bckBIC_indicator.csv")
 
 
-# stepwise selection using BIC and store them in a matrix
+# forward selection using BIC and store them in a matrix
 selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
 pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
 mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
+
+mspe_fBIC <- rep(NA, kfold)
 for (i in 1:kfold) {
   print(paste0("i = ", i))
   train.ind <- which(dataTrain_original$index != i)
@@ -234,6 +264,9 @@ for (i in 1:kfold) {
   print(row.names(summary(i_MfwdBIC)$coefficients))
   i_newdata <- dataTrain[-train.ind, ]
   i_y <- dataTrain$length[-train.ind]
+  
+  i_res <- i_y - predict(i_MfwdBIC, newdata=i_newdata)
+  mspe_fBIC[i] <- mean(i_res^2)
 }
 write.csv(data.frame(pval_mat), "fwdBIC_pval.csv")
 write.csv(data.frame(selection_mat), "fwdBIC_indicator.csv")
@@ -241,7 +274,8 @@ write.csv(data.frame(selection_mat), "fwdBIC_indicator.csv")
 
 
 
-# choosing the model and tweaking it
+# first attempt to choose a model and tweaking it
+# model1
 covariate_set1 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'edu_cat', 'monocyte_pct', 'BMI', 'race_cat',
                    'neutrophils_pct')
 covariate_set11 <- covariate_set1
@@ -262,7 +296,7 @@ for (i in 1:length(covariate_set11)) {
 
 # take out education and race because of their high correlation with ageyrs
 # covariate_set2 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'monocyte_pct', 'BMI', 'neutrophils_pct')
-covariate_set2 <- c('ageyrs', 'POP_furan3', 'male')
+covariate_set2 <- c('ageyrs', 'POP_furan3', 'POP_PCB1', 'POP_PCB5')
 covariate_set2 <- c('length', covariate_set2)
 pollutants_set2 <- dataTrain[colnames(dataTrain) %in% covariate_set2]
 # log transforming the response variable
@@ -300,9 +334,53 @@ print(paste0("minimum model with only age and furan3 avg. MPSE:", mean(model_min
 print(paste0("model2 avg. MPSE:", mean(model2_mpse)))
 
 
-# residual analysis of model2
-reslin <- resid(model2) # raw residuals
-studlin <- reslin/(sigma(model2)*sqrt(1-hatvalues(model2))) # studentized residuals
+# model3: make sense of the effect of cotinine
+covariate_set3 <- c('ageyrs', 'POP_furan3', 'ln_lbxcot', 'yrssmoke', 'POP_PCB1', 'POP_PCB5', 'edu_cat')
+covariate_set3 <- c('length', covariate_set3)
+pollutants_set3 <- dataTrain
+pollutants_set3$yrssmoke <- as.integer(pollutants_set3$yrssmoke > 0)
+
+smoke_list <- c('never_smoked', 'smoked')
+smoke_now <- smoke_list[pollutants_set3$yrssmoke + 1]
+pollutants_set3$yrssmoke <- factor(smoke_now, levels=smoke_list)
+print(dim(pollutants_set3))
+###
+pollutants_set3 <- pollutants_set3[colnames(pollutants_set3) %in% covariate_set3]
+
+# log transforming the response variable
+pollutants_set3$length <- log(pollutants_set3$length)
+model3 <- lm(length ~ ageyrs + POP_furan3 + ln_lbxcot + edu_cat + yrssmoke + yrssmoke * ln_lbxcot, 
+             data=pollutants_set3)
+summary(model3)
+
+proto_model3 <- lm(length ~ ageyrs + POP_furan3 + ln_lbxcot + edu_cat, data=pollutants_set3)
+summary(proto_model3)
+
+# cv model3
+kfold <- 11
+model3_mpse <- rep(NA, kfold)
+pollutants_set31 <- pollutants_set3
+pollutants_set31$index <- rep(1:kfold, each=nrow(pollutants_set3)/kfold)
+for (i in 1:kfold) {
+  print(paste0("i = ", i))
+  train.ind <- which(pollutants_set31$index != i)
+  
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
+  
+  i_model3 <- update(model3, subset=train.ind)
+  
+  model3.res <- pollutants_set3$length[-train.ind] - 
+    predict(i_model3, newdata = pollutants_set3[-train.ind, ])
+
+  model3_mpse[i] <- mean(model3.res^2) 
+}
+print(paste0("model3 avg. MPSE:", mean(model3_mpse)))
+
+
+# residual analysis of model3
+reslin <- resid(model3) # raw residuals
+studlin <- reslin/(sigma(model3)*sqrt(1-hatvalues(model3))) # studentized residuals
 
 # QQ plot
 qqnorm(studlin)
@@ -312,23 +390,28 @@ abline(0, 1)
 
 # plot of residuals vs covariates
 plotted_col <- "ageyrs"
-plot(reslin~pollutants_set2[[plotted_col]],
+plot(reslin~pollutants_set3[[plotted_col]],
      xlab=plotted_col,
      ylab="Residuals",
      main=paste0("Residuals vs ", plotted_col))
-plotted_col <- "male"
-plot(reslin~pollutants_set2[[plotted_col]],
+plotted_col <- "edu_cat"
+plot(reslin~pollutants_set3[[plotted_col]],
      xlab=plotted_col,
      ylab="Residuals",
      main=paste0("Residuals vs ", plotted_col))
 plotted_col <- "POP_furan3"
-plot(reslin~pollutants_set2[[plotted_col]],
+plot(reslin~pollutants_set3[[plotted_col]],
+     xlab=plotted_col,
+     ylab="Residuals",
+     main=paste0("Residuals vs ", plotted_col))
+plotted_col <- "ln_lbxcot"
+plot(reslin~pollutants_set3[[plotted_col]],
      xlab=plotted_col,
      ylab="Residuals",
      main=paste0("Residuals vs ", plotted_col))
 
 # plot of residuals against fitted values
-plot(studlin~fitted(model2),
+plot(studlin~fitted(model3),
      xlab="fitted values",
      ylab="Residuals",
      main="Residuals vs Fitted Values")
@@ -336,29 +419,29 @@ plot(studlin~fitted(model2),
 
 # outliers analysis
 # number of covariates
-p <- length(model2$coefficients) - 1
-pred <- predict(model2, newdata=pollutants_set2)
+p <- length(model3$coefficients) - 1
+pred <- predict(model3, newdata=pollutants_set3)
 
 # check leverage
 h <- hatvalues(model2)
 which(h > 2* (p + 1) / N)
 
 # DFFITS
-dffits_model2 <- dffits(model2) 
+dffits_model3 <- dffits(model3) 
 ## plot DFFITS
-plot(dffits_model2,ylab="DFFITS") 
+plot(dffits_model3,ylab="DFFITS") 
 abline(h=2 * sqrt((p + 1) / N), lty=2)  ## add thresholds
 abline(h=-2 * sqrt((p + 1) / N),lty=2)
 ## highlight influential points
-dff_ind <- which(abs(dffits_model2) > 2 * sqrt((p + 1) / N))
-points(dffits_model2[dff_ind]~dff_ind, col="red", pch=19) ## add red points
+dff_ind <- which(abs(dffits_model3) > 2 * sqrt((p + 1) / N))
+points(dffits_model3[dff_ind]~dff_ind, col="red", pch=19) ## add red points
 # we exclude text because it makes the chart too cluttered
 # text(y=dffits_model2[dff_ind], x=dff_ind, labels=dff_ind, pos=2) ## label high influence points
 
 
 # Cook's Distance
 
-D <- cooks.distance(model2) # Cook's distance
+D <- cooks.distance(model3) # Cook's distance
 ## influential points
 inf_ind <- which(pf(D, p + 1, N - p - 1, lower.tail=TRUE) > 0.5)
 ## plot cook's Distance
@@ -397,8 +480,20 @@ which(abs(DFBETAS[, 3]) > 2 / sqrt(N))  # gender
 which(abs(DFBETAS[, 4]) > 2 / sqrt(N))  # ageyrs
 
 
+#==== we select model3 to apply to the testing set
+pollutants_set3_test <- dataTest
+pollutants_set3_test$yrssmoke <- as.integer(pollutants_set3_test$yrssmoke > 0)
+pollutants_set3_test$length <- log(pollutants_set3_test$length)
 
+smoke_list <- c('never_smoked', 'smoked')
+smoke_now <- smoke_list[pollutants_set3_test$yrssmoke + 1]
+pollutants_set3_test$yrssmoke <- factor(smoke_now, levels=smoke_list)
+print(dim(pollutants_set3_test))
 
+testing_origin <- pollutants_set3_test$length
+testing_pred <- predict(model3, newdata=pollutants_set3_test)
+model3_test_res <- testing_origin - testing_pred
+print(paste0("testing MPSE for model3 is ", mean(model3_test_res^2)))
 
 
 
@@ -407,6 +502,12 @@ which(abs(DFBETAS[, 4]) > 2 / sqrt(N))  # ageyrs
 # adhoc checks
 model_age_v_edu <- lm(ageyrs ~ edu_cat, data=pollutants_set1)
 summary(model_age_v_edu)
+
+model_length_v_edu <- lm(length ~ edu_cat, data=pollutants_set1)
+summary(model_length_v_edu)
+
+model_yrssmoke_v_edu <- lm(yrssmoke ~ edu_cat, data=pollutants)
+summary(model_yrssmoke_v_edu)
 
 model_age_v_race <- lm(ageyrs ~ race_cat, data=pollutants_set1)
 summary(model_age_v_race)
@@ -422,41 +523,9 @@ vif(model_ageyrs_v_everything)
 summary(lm(edu_cat ~ ageyrs + race_cat + male, data=pollutants_original))
 
 
-# one last attempt to make sense of the effect of cotinine
-covariate_set3 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'yrssmoke')
-covariate_set3 <- c('length', covariate_set3)
-pollutants_set3 <- pollutants
-pollutants_set3$yrssmoke <- as.integer(pollutants_set3$yrssmoke > 0)
-
-smoke_list <- c('never_smoked', 'smoked')
-smoke_now <- smoke_list[pollutants_set3$yrssmoke + 1]
-pollutants_set3$yrssmoke <- factor(smoke_now, levels=smoke_list)
-print(dim(pollutants_set3))
-###
-pollutants_set3 <- pollutants_set3[colnames(pollutants_set3) %in% covariate_set3]
-
-# log transforming the response variable
-pollutants_set3$length <- log(pollutants_set3$length)
-model3 <- lm(length ~ ageyrs + POP_furan3 + male + ln_lbxcot + yrssmoke + yrssmoke * ln_lbxcot, data=pollutants_set3)
-summary(model3)
-
-# cv model3 v model2
-kfold <- 12
-model3_mpse <- rep(NA, kfold)
-pollutants_set31 <- pollutants_set3
-pollutants_set31$index <- rep(1:kfold, each=nrow(pollutants_set3)/kfold)
-for (i in 1:kfold) {
-  print(paste0("i = ", i))
-  train.ind <- which(pollutants_set31$index != i)
-  
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
-  
-  i_model3 <- update(model3, subset=train.ind)
-  
-  model3.res <- pollutants_set3$length[-train.ind] - 
-    predict(i_model3, newdata = pollutants_set3[-train.ind, ])
-
-  model3_mpse[i] <- mean(model3.res^2) 
-}
-print(paste0("model3 avg. MPSE:", mean(model3_mpse)))
+summary(lm(POP_PCB1 ~ POP_PCB5 + POP_furan3 + edu_cat + ln_lbxcot + ageyrs, data=pollutants_original))
+summary(lm(POP_PCB5 ~ POP_PCB1 + POP_furan3 + edu_cat + ln_lbxcot + ageyrs, data=pollutants_original))
+summary(lm(POP_furan3 ~ edu_cat + ln_lbxcot + ageyrs, data=pollutants_original))
+summary(lm(POP_PCB5 ~ POP_PCB1, data=pollutants_original))
+summary(lm(POP_PCB1 ~ POP_furan3, data=pollutants_original))
+summary(lm(POP_PCB5 ~ POP_furan3, data=pollutants_original))
