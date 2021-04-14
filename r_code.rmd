@@ -3,6 +3,7 @@ title: "Appendix A. R Code"
 author: "Group 57"
 date: "14/04/2021"
 output: pdf_document
+
 ---
 
 ```{r setup, include=FALSE}
@@ -523,4 +524,39 @@ summary(lm(POP_furan3 ~ edu_cat + ln_lbxcot + ageyrs, data=pollutants_original))
 summary(lm(POP_PCB5 ~ POP_PCB1, data=pollutants_original))
 summary(lm(POP_PCB1 ~ POP_furan3, data=pollutants_original))
 summary(lm(POP_PCB5 ~ POP_furan3, data=pollutants_original))
+
+
+#==== LASSO
+datalassoTrain <- dataTrain
+datalassoTrain$length <- log(datalassoTrain$length)
+datalassoTest <- dataTest
+datalassoTest$length <- log(datalassoTest$length)
+Mfull <- lm(length ~ ., data=datalassoTrain)
+Mfull_test <- lm(length ~ ., data=datalassoTest)
+X_train <- model.matrix(Mfull)
+y_train <- datalassoTrain[['length']]
+X_test <- model.matrix(Mfull_test)
+y_test <- datalassoTest[['length']]
+M_lasso <- glmnet(x=X_train,y=y_train,alpha = 1)
+
+## plot paths
+plot(M_lasso,xvar = "lambda",label=TRUE)
+
+## fit with crossval
+cvfit_lasso <-  cv.glmnet(x=X_train,y=y_train,alpha = 1)
+
+## plot MSPEs by lambda
+plot(cvfit_lasso)
+
+## estimated betas for minimum lambda 
+coef(cvfit_lasso, s = "lambda.min")## alternatively could use "lambda.1se"
+
+## predictions
+pred_lasso <- predict(cvfit_lasso,newx=X_test,  s="lambda.min")
+
+## MSPE in test set
+MSPE_lasso <- mean((pred_lasso-y_test)^2)
+print(MSPE_lasso)
+
+
 ```
