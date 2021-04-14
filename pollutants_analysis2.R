@@ -1,6 +1,17 @@
 library(glmnet)
 library(corrplot)
 pollutants_original <- read.csv("pollutants.csv", header = TRUE)
+N <- nrow(pollutants_original)
+
+
+#==== explorotary data analysis
+num_smokenow <- length(which(pollutants_original$smokenow == 1))
+num_nosmokenow <- nrow(pollutants_original) - num_smokenow
+print(num_smokenow / N)
+
+num_smoked <- length(which(pollutants_original$yrssmoke > 0))
+num_nosmoked <- N - num_smoked
+print(num_smoked / N)
 
 # drop the first column of indices
 pollutants <- pollutants_original[-1]
@@ -31,11 +42,6 @@ education <- edu_list[pollutants$edu_cat]
 race <- eth_list[pollutants$race_cat]
 smoke_now <- smoke_list[pollutants$smokenow + 1]
 
-pollutants$male <- factor(gender)
-pollutants$edu_cat <- factor(education)
-pollutants$race_cat <- factor(race)
-pollutants$smokenow <- factor(smoke_now)
-
 pollutants$male <- factor(gender, levels=gender_list)
 pollutants$edu_cat <- factor(education, levels=edu_list)
 pollutants$race_cat <- factor(race, levels=eth_list)
@@ -44,26 +50,35 @@ pollutants$smokenow <- factor(smoke_now, levels=smoke_list)
 # basic data manipulation complete
 
 
+#==== train test split
+set.seed(57)
+sampleTrain <- sample(1:N, round(N*0.7,0), replace = FALSE)
+
+dataTrain <- pollutants[sampleTrain,]
+dataTest <- pollutants[-sampleTrain,]
+
+
 #====
 # test the methods
-N <- nrow(pollutants)
-kfold <- 12
-pollutants_original$index <- rep(1:kfold, each=N/kfold)
+Ntrain <- nrow(dataTrain)
+kfold <- 11
+dataTrain_original <- dataTrain
+dataTrain_original$index <- rep(1:kfold, each=Ntrain/kfold)
 
 # forward selection using AIC and store them in a matrix
-selection_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
-pval_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)
-mat_rownames <- c(colnames(pollutants), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
+selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
+pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
+mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
 for (i in 1:kfold) {
   print(paste0("i = ", i))
-  train.ind <- which(pollutants_original$index != i)
+  train.ind <- which(dataTrain_original$index != i)
   
-  M0 <- lm(length ~ 1, data=pollutants[train.ind, ])
+  M0 <- lm(length ~ 1, data=dataTrain[train.ind, ])
   Mstart <- M0
-  Mfull <- lm(length ~ ., data=pollutants[train.ind, ])
+  Mfull <- lm(length ~ ., data=dataTrain[train.ind, ])
   i_MfwdAIC <- step(object = M0, scope = list(lower = M0, upper = Mfull), 
                      trace = FALSE, direction = "forward", k = 2)
   i_coef_df <- data.frame(summary(i_MfwdAIC)$coefficients)
@@ -72,27 +87,27 @@ for (i in 1:kfold) {
     pval_mat[row.names(i_coef_df)[j] == mat_rownames, i] <- i_coef_df[j, "Pr...t.."]
   }
   print(row.names(summary(i_MfwdAIC)$coefficients))
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
 }
 write.csv(data.frame(pval_mat), "fwdAIC_pval.csv")
 write.csv(data.frame(selection_mat), "fwdAIC_indicator.csv")
 
 
 # backward elimination using AIC and store them in a matrix
-selection_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
-pval_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)
-mat_rownames <- c(colnames(pollutants), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
+selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
+pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
+mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
 for (i in 1:kfold) {
   print(paste0("i = ", i))
-  train.ind <- which(pollutants_original$index != i)
+  train.ind <- which(dataTrain_original$index != i)
   
-  M0 <- lm(length ~ 1, data=pollutants[train.ind, ])
+  M0 <- lm(length ~ 1, data=dataTrain[train.ind, ])
   Mstart <- M0
-  Mfull <- lm(length ~ ., data=pollutants[train.ind, ])
+  Mfull <- lm(length ~ ., data=dataTrain[train.ind, ])
   i_MbckAIC <- step(object = Mfull, scope = list(lower = M0, upper = Mfull), 
                     trace = FALSE, direction = "back", k = 2)
   i_coef_df <- data.frame(summary(i_MbckAIC)$coefficients)
@@ -101,27 +116,27 @@ for (i in 1:kfold) {
     pval_mat[row.names(i_coef_df)[j] == mat_rownames, i] <- i_coef_df[j, "Pr...t.."]
   }
   print(row.names(summary(i_MbckAIC)$coefficients))
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
 }
 write.csv(data.frame(pval_mat), "bckAIC_pval.csv")
 write.csv(data.frame(selection_mat), "bckAIC_indicator.csv")
 
 
 # stepwise selection using AIC and store them in a matrix
-selection_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
-pval_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)
-mat_rownames <- c(colnames(pollutants), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
+selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
+pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
+mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
 for (i in 1:kfold) {
   print(paste0("i = ", i))
-  train.ind <- which(pollutants_original$index != i)
+  train.ind <- which(dataTrain_original$index != i)
   
-  M0 <- lm(length ~ 1, data=pollutants[train.ind, ])
+  M0 <- lm(length ~ 1, data=dataTrain[train.ind, ])
   Mstart <- M0
-  Mfull <- lm(length ~ ., data=pollutants[train.ind, ])
+  Mfull <- lm(length ~ ., data=dataTrain[train.ind, ])
   i_MstepAIC <- step(object = Mstart, scope = list(lower = M0, upper = Mfull), 
                     trace = FALSE, direction = "both", k = 2)
   i_coef_df <- data.frame(summary(i_MstepAIC)$coefficients)
@@ -130,27 +145,27 @@ for (i in 1:kfold) {
     pval_mat[row.names(i_coef_df)[j] == mat_rownames, i] <- i_coef_df[j, "Pr...t.."]
   }
   print(row.names(summary(i_MstepAIC)$coefficients))
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
 }
 write.csv(data.frame(pval_mat), "stepAIC_pval.csv")
 write.csv(data.frame(selection_mat), "stepAIC_indicator.csv")
 
 
 # stepwise selection using BIC and store them in a matrix
-selection_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
-pval_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)
-mat_rownames <- c(colnames(pollutants), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
+selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
+pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
+mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
 for (i in 1:kfold) {
   print(paste0("i = ", i))
-  train.ind <- which(pollutants_original$index != i)
+  train.ind <- which(dataTrain_original$index != i)
   
-  M0 <- lm(length ~ 1, data=pollutants[train.ind, ])
+  M0 <- lm(length ~ 1, data=dataTrain[train.ind, ])
   Mstart <- M0
-  Mfull <- lm(length ~ ., data=pollutants[train.ind, ])
+  Mfull <- lm(length ~ ., data=dataTrain[train.ind, ])
   i_MstepBIC <- step(object = Mstart, scope = list(lower = M0, upper = Mfull), 
                      trace = FALSE, direction = "both", k = log(length(train.ind)))
   i_coef_df <- data.frame(summary(i_MstepBIC)$coefficients)
@@ -159,27 +174,27 @@ for (i in 1:kfold) {
     pval_mat[row.names(i_coef_df)[j] == mat_rownames, i] <- i_coef_df[j, "Pr...t.."]
   }
   print(row.names(summary(i_MstepBIC)$coefficients))
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
 }
 write.csv(data.frame(pval_mat), "stepBIC_pval.csv")
 write.csv(data.frame(selection_mat), "stepBIC_indicator.csv")
 
 
 # stepwise selection using BIC and store them in a matrix
-selection_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
-pval_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)
-mat_rownames <- c(colnames(pollutants), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
+selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
+pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
+mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
 for (i in 1:kfold) {
   print(paste0("i = ", i))
-  train.ind <- which(pollutants_original$index != i)
+  train.ind <- which(dataTrain_original$index != i)
   
-  M0 <- lm(length ~ 1, data=pollutants[train.ind, ])
+  M0 <- lm(length ~ 1, data=dataTrain[train.ind, ])
   Mstart <- M0
-  Mfull <- lm(length ~ ., data=pollutants[train.ind, ])
+  Mfull <- lm(length ~ ., data=dataTrain[train.ind, ])
   i_MbckBIC <- step(object = Mfull, scope = list(lower = M0, upper = Mfull), 
                      trace = FALSE, direction = "backward", k = log(length(train.ind)))
   i_coef_df <- data.frame(summary(i_MbckBIC)$coefficients)
@@ -188,27 +203,27 @@ for (i in 1:kfold) {
     pval_mat[row.names(i_coef_df)[j] == mat_rownames, i] <- i_coef_df[j, "Pr...t.."]
   }
   print(row.names(summary(i_MbckBIC)$coefficients))
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
 }
 write.csv(data.frame(pval_mat), "bckBIC_pval.csv")
 write.csv(data.frame(selection_mat), "bckBIC_indicator.csv")
 
 
 # stepwise selection using BIC and store them in a matrix
-selection_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
-pval_mat <- matrix(0, nrow=length(colnames(pollutants)) + 6, ncol=kfold)
-mat_rownames <- c(colnames(pollutants), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
+selection_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)  # +6 to rownum bc of categorical covariates
+pval_mat <- matrix(0, nrow=length(colnames(dataTrain)) + 6, ncol=kfold)
+mat_rownames <- c(colnames(dataTrain), c("edu_cathigh_school", "edu_catcollege", "edu_catcollege_grad", 
                                           "race_catmaxi_us", "race_catnonhisp_black", "race_catnonhisp_white"))
 row.names(selection_mat) <- mat_rownames
 row.names(pval_mat) <- mat_rownames
 for (i in 1:kfold) {
   print(paste0("i = ", i))
-  train.ind <- which(pollutants_original$index != i)
+  train.ind <- which(dataTrain_original$index != i)
   
-  M0 <- lm(length ~ 1, data=pollutants[train.ind, ])
+  M0 <- lm(length ~ 1, data=dataTrain[train.ind, ])
   Mstart <- M0
-  Mfull <- lm(length ~ ., data=pollutants[train.ind, ])
+  Mfull <- lm(length ~ ., data=dataTrain[train.ind, ])
   i_MfwdBIC <- step(object = M0, scope = list(lower = M0, upper = Mfull), 
                     trace = FALSE, direction = "forward", k = log(length(train.ind)))
   i_coef_df <- data.frame(summary(i_MfwdBIC)$coefficients)
@@ -217,8 +232,8 @@ for (i in 1:kfold) {
     pval_mat[row.names(i_coef_df)[j] == mat_rownames, i] <- i_coef_df[j, "Pr...t.."]
   }
   print(row.names(summary(i_MfwdBIC)$coefficients))
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
 }
 write.csv(data.frame(pval_mat), "fwdBIC_pval.csv")
 write.csv(data.frame(selection_mat), "fwdBIC_indicator.csv")
@@ -231,10 +246,10 @@ covariate_set1 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'edu_cat', 'mon
                    'neutrophils_pct')
 covariate_set11 <- covariate_set1
 covariate_set1 <- c('length', covariate_set1)
-pollutants_set1 <- pollutants[colnames(pollutants) %in% covariate_set1]
+pollutants_set1 <- dataTrain[colnames(dataTrain) %in% covariate_set1]
 model1 <- lm(length ~ ., data=pollutants_set1)
 
-pollutants_set11 <- pollutants[covariate_set11]
+pollutants_set11 <- dataTrain[covariate_set11]
 vif_list11 <- c()
 for (i in 1:length(covariate_set11)) {
   print(covariate_set11[i])
@@ -249,16 +264,16 @@ for (i in 1:length(covariate_set11)) {
 # covariate_set2 <- c('ageyrs', 'POP_furan3', 'male', 'ln_lbxcot', 'monocyte_pct', 'BMI', 'neutrophils_pct')
 covariate_set2 <- c('ageyrs', 'POP_furan3', 'male')
 covariate_set2 <- c('length', covariate_set2)
-pollutants_set2 <- pollutants[colnames(pollutants) %in% covariate_set2]
+pollutants_set2 <- dataTrain[colnames(dataTrain) %in% covariate_set2]
 # log transforming the response variable
-# pollutants_set2$length <- log(pollutants_set2$length)
+pollutants_set2$length <- log(pollutants_set2$length)
 model2 <- lm(length ~ ., data=pollutants_set2)
 model2 <- lm(length ~ ., data=pollutants_set2)
 summary(model2)
 
 # cross validate model2 and the bare minimum model with ageyrs + furan3
 model_min <- lm(length ~ ageyrs + POP_furan3, data=pollutants_set2)
-kfold <- 12
+kfold <- 11
 model2_mpse <- rep(NA, kfold)
 model_min_mpse <- rep(NA, kfold)
 pollutants_set21 <- pollutants_set2
@@ -267,8 +282,8 @@ for (i in 1:kfold) {
   print(paste0("i = ", i))
   train.ind <- which(pollutants_set21$index != i)
   
-  i_newdata <- pollutants[-train.ind, ]
-  i_y <- pollutants$length[-train.ind]
+  i_newdata <- dataTrain[-train.ind, ]
+  i_y <- dataTrain$length[-train.ind]
   
   i_model_min <- update(model_min, subset=train.ind)
   i_model2 <- update(model2, subset=train.ind)
